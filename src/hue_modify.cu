@@ -111,10 +111,11 @@ void modify_hue(png_bytep h_image,
     // sao uma "dica" do que deve ser feito em cada chamada a funcoes CUDA
 
     double* cudaA = 0;
-    cudaMalloc(&cudaA, 9 * sizeof(double));
+    int sizeA =  9 * sizeof(double);
+    cudaMalloc(&cudaA, sizeA);
     checkErrors(cudaGetLastError(), "Alocacao da matriz A no device");
 
-    cudaMemcpy(cudaA, A, sizeof(A), cudaMemcpyHostToDevice);
+    cudaMemcpy(cudaA, A, sizeA, cudaMemcpyHostToDevice);
     checkErrors(cudaGetLastError(), "Copia da matriz A para o device");
 
     png_bytep cudaImg = 0;
