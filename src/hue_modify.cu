@@ -72,6 +72,14 @@ __global__ void modify_hue_kernel(png_bytep d_image,
                                   int height,
                                   double *A) {
     // SEU CODIGO DO EP3 AQUI
+    int row = blockDim.x * blockIdx.x + threadIdx.x;
+    int col = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (row < height && col < width) {
+        png_bytep img_row = &(d_image[row * width * 3]);
+        png_bytep px = &(img_row[col * 3]);
+        modify_pixel(px, A);
+    }
 }
 
 // Altera a matiz (hue) de uma imagem em paralelo
@@ -83,6 +91,18 @@ void modify_hue(png_bytep h_image,
                 double hue_diff) {
     // SEU CODIGO DO EP3 AQUI
 
+    double c = cos(2 * M_PI * hue_diff);
+    double s = sin(2 * M_PI * hue_diff);
+    double one_third = 1.0 / 3.0;
+    double sqrt_third = sqrt(one_third);
+    double a11 = c + one_third * (1.0 - c);
+    double a12 = one_third * (1.0 - c) - sqrt_third * s;
+    double a13 = one_third * (1.0 - c) + sqrt_third * s;
+    double a21 = a13; double a22 = a11; double a23 = a12;
+    double a31 = a12; double a32 = a13; double a33 = a11;
+
+    double A[9] = {a11, a12, a13, a21, a22, a23, a31, a32, a33};
+
     // Voce deve completar os ... com os argumentos corretos e
     // indicar dimensoes apropriadas para o grid e os blocos
     // (blocos por grid e threads por bloco)
@@ -90,31 +110,34 @@ void modify_hue(png_bytep h_image,
     // As mensagens nas chamadas de checkErrors, usadas pra debug,
     // sao uma "dica" do que deve ser feito em cada chamada a funcoes CUDA
 
-    // cudaMalloc(...);
-    // checkErrors(cudaGetLastError(), "Alocacao da matriz A no device");
+    double* cudaA = 0;
+    cudaMalloc(&cudaA, sizeof(A));
+    checkErrors(cudaGetLastError(), "Alocacao da matriz A no device");
 
-    // cudaMemcpy(...);
-    // checkErrors(cudaGetLastError(), "Copia da matriz A para o device");
+    cudaMemcpy(cudaA, A, sizeof(A), cudaMemcpyHostToDevice);
+    checkErrors(cudaGetLastError(), "Copia da matriz A para o device");
 
-    // cudaMalloc(...);
-    // checkErrors(cudaGetLastError(), "Alocacao da imagem no device");
+    png_bytep cudaImg = 0;
+    cudaMalloc((void**)&cudaImg, image_size);
+    checkErrors(cudaGetLastError(), "Alocacao da imagem no device");
 
-    // cudaMemcpy(...);
-    // checkErrors(cudaGetLastError(), "Copia da imagem para o device");
+    cudaMemcpy(cudaImg, h_image, image_size, cudaMemcpyHostToDevice);
+    checkErrors(cudaGetLastError(), "Copia da imagem para o device");
 
     // // Determinar as dimensoes adequadas aqui
-    // dim3 dim_block(1, 1);
-    // dim3 dim_grid(1, 1);
+    int maxBlockSize = 1024;
+    int blocksPerGrid = ((width * height) + maxBlockSize - 1) / maxBlockSize;
+    dim3 dim_block(sqrt(maxBlockSize), sqrt(maxBlockSize), 1);
+    dim3 dim_grid(sqrt(blocksPerGrid), sqrt(blocksPerGrid), 1);
 
-    // modify_hue_kernel<<<dim_grid, dim_block>>>
-    //     (...);
-    // checkErrors(cudaGetLastError(), "Lançamento do kernel");
+    modify_hue_kernel<<<dim_grid, dim_block>>>(cudaImg, width, height, cudaA);
+    checkErrors(cudaGetLastError(), "Lançamento do kernel");
 
-    // cudaMemcpy(...);
-    // checkErrors(cudaGetLastError(), "Copia da imagem para o host");
+    cudaMemcpy(h_image, cudaImg, image_size, cudaMemcpyDeviceToHost);
+    checkErrors(cudaGetLastError(), "Copia da imagem para o host");
 
-    // cudaFree(...);
-    // cudaFree(...);
+    cudaFree(cudaA);
+    cudaFree(cudaImg);
 }
 
 // Le imagem png de um arquivo de entrada para a memoria
@@ -280,10 +303,10 @@ int main(int argc, char *argv[]) {
     // Processamento da imagem (alteracao do hue)
 
     // Versao sequencial:
-    modify_hue_seq(image, width, height, hue_diff);
+    // modify_hue_seq(image, width, height, hue_diff);
 
     // // Versao paralela
-    // modify_hue(image, width, height, image_size, hue_diff);
+    modify_hue(image, width, height, image_size, hue_diff);
 
     // Escrita da imagem para arquivo
     write_png_image(argv[2], image, width, height);
