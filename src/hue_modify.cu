@@ -8,7 +8,8 @@
 // Funcao que aplica a matriz de transformacao A
 // ao pixel px = (r, g, b)
 // (new_r, new_g, new_b)' = A * (r, g, b)'
-__host__ __device__ void modify_pixel(png_bytep px, double *A) {
+__host__ __device__ void modify_pixel(png_bytep px, double *A)
+{
     double r = px[0] / 255.0;
     double g = px[1] / 255.0;
     double b = px[2] / 255.0;
@@ -21,13 +22,14 @@ __host__ __device__ void modify_pixel(png_bytep px, double *A) {
     new_g = fmin(fmax(new_g, 0.0), 1.0);
     new_b = fmin(fmax(new_b, 0.0), 1.0);
 
-    px[0] = (png_byte) round(new_r * 255.0);
-    px[1] = (png_byte) round(new_g * 255.0);
-    px[2] = (png_byte) round(new_b * 255.0);
+    px[0] = (png_byte)round(new_r * 255.0);
+    px[1] = (png_byte)round(new_g * 255.0);
+    px[2] = (png_byte)round(new_b * 255.0);
 }
 
 // Altera a matiz (hue) de uma imagem sequencialmente
-void modify_hue_seq(png_bytep image, int width, int height, double hue_diff) {
+void modify_hue_seq(png_bytep image, int width, int height, double hue_diff)
+{
     double c = cos(2 * M_PI * hue_diff);
     double s = sin(2 * M_PI * hue_diff);
     double one_third = 1.0 / 3.0;
@@ -42,14 +44,20 @@ void modify_hue_seq(png_bytep image, int width, int height, double hue_diff) {
     double a11 = c + one_third * (1.0 - c);
     double a12 = one_third * (1.0 - c) - sqrt_third * s;
     double a13 = one_third * (1.0 - c) + sqrt_third * s;
-    double a21 = a13; double a22 = a11; double a23 = a12;
-    double a31 = a12; double a32 = a13; double a33 = a11;
+    double a21 = a13;
+    double a22 = a11;
+    double a23 = a12;
+    double a31 = a12;
+    double a32 = a13;
+    double a33 = a11;
 
     double A[9] = {a11, a12, a13, a21, a22, a23, a31, a32, a33};
 
-    for (int i = 0; i < height; i++) {
+    for (int i = 0; i < height; i++)
+    {
         png_bytep row = &(image[i * width * 3]);
-        for (int j = 0; j < width; j++) {
+        for (int j = 0; j < width; j++)
+        {
             png_bytep px = &(row[j * 3]);
             modify_pixel(px, A);
         }
@@ -57,8 +65,10 @@ void modify_hue_seq(png_bytep image, int width, int height, double hue_diff) {
 }
 
 // Funcao auxiliar para identificar erros CUDA
-void checkErrors(cudaError_t err, const char *msg) {
-    if (err != cudaSuccess) {
+void checkErrors(cudaError_t err, const char *msg)
+{
+    if (err != cudaSuccess)
+    {
         fprintf(stderr, "%s [Erro CUDA: %s]\n",
                 msg, cudaGetErrorString(err));
         exit(EXIT_FAILURE);
@@ -70,12 +80,14 @@ void checkErrors(cudaError_t err, const char *msg) {
 __global__ void modify_hue_kernel(png_bytep d_image,
                                   int width,
                                   int height,
-                                  double *A) {
+                                  double *A)
+{
     // SEU CODIGO DO EP3 AQUI
-    int row = blockDim.x * blockIdx.x + threadIdx.x;
-    int col = blockDim.y * blockIdx.y + threadIdx.y;
+    int col = blockDim.x * blockIdx.x + threadIdx.x;
+    int row = blockDim.y * blockIdx.y + threadIdx.y;
 
-    if (row < height && col < width) {
+    if (row < height && col < width)
+    {
         png_bytep img_row = &(d_image[row * width * 3]);
         png_bytep px = &(img_row[col * 3]);
         modify_pixel(px, A);
@@ -88,7 +100,8 @@ void modify_hue(png_bytep h_image,
                 int width,
                 int height,
                 size_t image_size,
-                double hue_diff) {
+                double hue_diff)
+{
     // SEU CODIGO DO EP3 AQUI
 
     double c = cos(2 * M_PI * hue_diff);
@@ -98,8 +111,12 @@ void modify_hue(png_bytep h_image,
     double a11 = c + one_third * (1.0 - c);
     double a12 = one_third * (1.0 - c) - sqrt_third * s;
     double a13 = one_third * (1.0 - c) + sqrt_third * s;
-    double a21 = a13; double a22 = a11; double a23 = a12;
-    double a31 = a12; double a32 = a13; double a33 = a11;
+    double a21 = a13;
+    double a22 = a11;
+    double a23 = a12;
+    double a31 = a12;
+    double a32 = a13;
+    double a33 = a11;
 
     double A[9] = {a11, a12, a13, a21, a22, a23, a31, a32, a33};
 
@@ -110,8 +127,8 @@ void modify_hue(png_bytep h_image,
     // As mensagens nas chamadas de checkErrors, usadas pra debug,
     // sao uma "dica" do que deve ser feito em cada chamada a funcoes CUDA
 
-    double* cudaA = 0;
-    int sizeA =  9 * sizeof(double);
+    double *cudaA = 0;
+    int sizeA = 9 * sizeof(double);
     cudaMalloc(&cudaA, sizeA);
     checkErrors(cudaGetLastError(), "Alocacao da matriz A no device");
 
@@ -119,17 +136,15 @@ void modify_hue(png_bytep h_image,
     checkErrors(cudaGetLastError(), "Copia da matriz A para o device");
 
     png_bytep cudaImg = 0;
-    cudaMalloc((void**)&cudaImg, image_size);
+    cudaMalloc((void **)&cudaImg, image_size);
     checkErrors(cudaGetLastError(), "Alocacao da imagem no device");
 
     cudaMemcpy(cudaImg, h_image, image_size, cudaMemcpyHostToDevice);
     checkErrors(cudaGetLastError(), "Copia da imagem para o device");
 
     // // Determinar as dimensoes adequadas aqui
-    int maxBlockSize = 1024;
-    int blocksPerGrid = ((width * height) + maxBlockSize - 1) / maxBlockSize;
-    dim3 dim_block(sqrt(maxBlockSize), sqrt(maxBlockSize), 1);
-    dim3 dim_grid(sqrt(blocksPerGrid), sqrt(blocksPerGrid), 1);
+    dim3 dim_block(32, 32); // or any other value that gives a total of 1024 or less
+    dim3 dim_grid((width + dim_block.x - 1) / dim_block.x, (height + dim_block.y - 1) / dim_block.y);
 
     modify_hue_kernel<<<dim_grid, dim_block>>>(cudaImg, width, height, cudaA);
     checkErrors(cudaGetLastError(), "Lançamento do kernel");
@@ -146,22 +161,26 @@ void read_png_image(const char *filename,
                     png_bytep *image,
                     int *width,
                     int *height,
-                    size_t *image_size) {
+                    size_t *image_size)
+{
     FILE *fp = fopen(filename, "rb");
-    if (!fp) {
+    if (!fp)
+    {
         fprintf(stderr, "Erro ao ler o arquivo de entrada %s\n", filename);
         exit(EXIT_FAILURE);
     }
 
     png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    if (!png) {
+    if (!png)
+    {
         fprintf(stderr, "Erro ao criar PNG read struct \n");
         fclose(fp);
         exit(EXIT_FAILURE);
     }
 
     png_infop info = png_create_info_struct(png);
-    if (!info) {
+    if (!info)
+    {
         fprintf(stderr, "Erro ao criar PNG info struct \n");
         png_destroy_read_struct(&png, &info, NULL);
         fclose(fp);
@@ -170,7 +189,8 @@ void read_png_image(const char *filename,
 
     // Em caso de erro nas funcoes da libpng,
     // programa "pula" para este ponto de execucao
-    if (setjmp(png_jmpbuf(png))) {
+    if (setjmp(png_jmpbuf(png)))
+    {
         fprintf(stderr, "Erro ao ler imagem PNG \n");
         png_destroy_read_struct(&png, &info, NULL);
         fclose(fp);
@@ -186,8 +206,8 @@ void read_png_image(const char *filename,
     png_byte bit_depth = png_get_bit_depth(png, info);
 
     // Verifica se imagem png possui o formato apropriado
-    if ((color_type != PNG_COLOR_TYPE_RGB && color_type != PNG_COLOR_TYPE_GRAY)
-        || bit_depth != 8) {
+    if ((color_type != PNG_COLOR_TYPE_RGB && color_type != PNG_COLOR_TYPE_GRAY) || bit_depth != 8)
+    {
         printf("Formato PNG nao suportado, deve ser 8-bit RGB ou grayscale\n");
         png_destroy_read_struct(&png, &info, NULL);
         fclose(fp);
@@ -198,10 +218,11 @@ void read_png_image(const char *filename,
 
     // Alocacao de memoria para imagem e ponteiros para as linhas
     *image_size = png_get_rowbytes(png, info) * (*height);
-    *image = (png_bytep) malloc(*image_size);
+    *image = (png_bytep)malloc(*image_size);
 
-    png_bytep *row_pointers = (png_bytep *) malloc(sizeof(png_bytep) * (*height));
-    for (int i = 0; i < *height; i++) {
+    png_bytep *row_pointers = (png_bytep *)malloc(sizeof(png_bytep) * (*height));
+    for (int i = 0; i < *height; i++)
+    {
         row_pointers[i] = *image + i * png_get_rowbytes(png, info);
     }
 
@@ -218,22 +239,26 @@ void read_png_image(const char *filename,
 void write_png_image(const char *filename,
                      png_bytep image,
                      int width,
-                     int height) {
+                     int height)
+{
     FILE *fp = fopen(filename, "wb");
-    if (!fp) {
+    if (!fp)
+    {
         fprintf(stderr, "Erro ao criar o arquivo de saida %s\n", filename);
         exit(EXIT_FAILURE);
     }
 
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    if (!png) {
+    if (!png)
+    {
         fprintf(stderr, "Erro ao criar PNG write struct \n");
         fclose(fp);
         exit(EXIT_FAILURE);
     }
 
     png_infop info = png_create_info_struct(png);
-    if (!info) {
+    if (!info)
+    {
         fprintf(stderr, "Erro ao criar PNG info struct.\n");
         png_destroy_write_struct(&png, &info);
         fclose(fp);
@@ -242,7 +267,8 @@ void write_png_image(const char *filename,
 
     // Em caso de erro nas funcoes da libpng,
     // programa "pula" para este ponto de execucao
-    if (setjmp(png_jmpbuf(png))) {
+    if (setjmp(png_jmpbuf(png)))
+    {
         printf("Erro ao escrever imagem PNG \n");
         png_destroy_write_struct(&png, &info);
         fclose(fp);
@@ -254,14 +280,14 @@ void write_png_image(const char *filename,
     // Configura o formato da imagem a ser criada
     png_set_IHDR(
         png, info, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
-        PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT
-    );
+        PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
     png_write_info(png, info);
 
     // Criacao de ponteiros para as linhas
     png_bytep row_pointers[height];
-    for (int i = 0; i < height; i++) {
+    for (int i = 0; i < height; i++)
+    {
         row_pointers[i] = &(image[i * width * 3]);
     }
 
@@ -274,13 +300,15 @@ void write_png_image(const char *filename,
     fclose(fp);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     png_bytep image;
     int width, height;
     size_t image_size;
 
     // Leitura e validacao dos parametros de entrada
-    if (argc != 4) {
+    if (argc != 4)
+    {
         printf("Uso: ./hue_modify <input_file> <output_file> <hue_diff>\n");
         printf("0.0 <= hue_diff <= 1.0\n");
         exit(EXIT_FAILURE);
@@ -288,12 +316,14 @@ int main(int argc, char *argv[]) {
 
     double hue_diff;
     int ret = sscanf(argv[3], "%lf", &hue_diff);
-    if (ret == 0 || ret == EOF) {
+    if (ret == 0 || ret == EOF)
+    {
         fprintf(stderr, "Erro ao ler hue_diff\n");
         exit(EXIT_FAILURE);
     }
 
-    if (hue_diff < 0.0 || hue_diff > 1.0) {
+    if (hue_diff < 0.0 || hue_diff > 1.0)
+    {
         fprintf(stderr, "hue_diff deve ser entre 0.0 e 1.0\n");
         exit(EXIT_FAILURE);
     }
